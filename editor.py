@@ -1,4 +1,3 @@
-
 from PyQt5.QtWidgets import QTextEdit, QToolBar, QAction
 from PyQt5.QtGui import QTextCursor, QTextCharFormat, QFont
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
@@ -80,6 +79,11 @@ class DocumentEditor(QObject):
         text = ""
         for para in self.document.paragraphs:
             text += para.text + "\n"  # Ensure all content, including <>, is captured
+        for table in self.document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    text += cell.text + "\t"
+                text += "\n"
         return text.strip()
 
     def display_document_as_html(self):
@@ -87,6 +91,7 @@ class DocumentEditor(QObject):
         for para in self.document.paragraphs:
             para_text = para.text.strip()
             if para_text:
+                para_text = para_text.replace('<', '&lt;').replace('>', '&gt;')  # Ensure placeholders are rendered correctly
                 font = para.style.font
                 style = "font-family: {0};".format(font.name if font.name else "default")
                 if font.size:
@@ -98,6 +103,15 @@ class DocumentEditor(QObject):
                 if font.underline:
                     style += " text-decoration: underline;"
                 html_content += f'<p style="{style}">{para_text}</p>'
+        for table in self.document.tables:
+            html_content += "<table border='1'>"
+            for row in table.rows:
+                html_content += "<tr>"
+                for cell in row.cells:
+                    cell_text = cell.text.replace('<', '&lt;').replace('>', '&gt;')  # Ensure placeholders in tables are rendered correctly
+                    html_content += f"<td>{cell_text}</td>"
+                html_content += "</tr>"
+            html_content += "</table>"
         html_content += "</body></html>"
         self.editor_widget.setHtml(html_content)
 
