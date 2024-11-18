@@ -98,6 +98,8 @@ class DocumentEditor(QObject):
 
     def display_document_as_html(self):
         html_content = "<html><body>"
+        current_list_type = None
+
         for para in self.document.paragraphs:
             para_text = ""
             for run in para.runs:
@@ -105,18 +107,41 @@ class DocumentEditor(QObject):
                     para_text += '<img src="data:image/png;base64,...">'  # Add the actual image data
                 else:
                     para_text += run.text.strip().replace('<', '&lt;').replace('>', '&gt;')
-            if para_text:
-                font = para.style.font
-                style = "font-family: {0};".format(font.name if font.name else "default")
-                if font.size:
-                    style += f" font-size: {font.size.pt}px;"
-                if font.bold:
-                    style += " font-weight: bold;"
-                if font.italic:
-                    style += " font-style: italic;"
-                if font.underline:
-                    style += " text-decoration: underline;"
-                html_content += f'<p style="{style}">{para_text}</p>'
+
+            if para.style.name.startswith('List Bullet'):
+                if current_list_type != 'ul':
+                    if current_list_type:
+                        html_content += f"</{current_list_type}>"
+                    html_content += "<ul>"
+                    current_list_type = 'ul'
+                html_content += f"<li>{para_text}</li>"
+            elif para.style.name.startswith('List Number'):
+                if current_list_type != 'ol':
+                    if current_list_type:
+                        html_content += f"</{current_list_type}>"
+                    html_content += "<ol>"
+                    current_list_type = 'ol'
+                html_content += f"<li>{para_text}</li>"
+            else:
+                if current_list_type:
+                    html_content += f"</{current_list_type}>"
+                    current_list_type = None
+                if para_text:
+                    font = para.style.font
+                    style = "font-family: {0};".format(font.name if font.name else "default")
+                    if font.size:
+                        style += f" font-size: {font.size.pt}px;"
+                    if font.bold:
+                        style += " font-weight: bold;"
+                    if font.italic:
+                        style += " font-style: italic;"
+                    if font.underline:
+                        style += " text-decoration: underline;"
+                    html_content += f'<p style="{style}">{para_text}</p>'
+
+        if current_list_type:
+            html_content += f"</{current_list_type}>"
+
         for table in self.document.tables:
             html_content += "<table border='1'>"
             for row in table.rows:
@@ -126,6 +151,7 @@ class DocumentEditor(QObject):
                     html_content += f"<td>{cell_text}</td>"
                 html_content += "</tr>"
             html_content += "</table>"
+
         html_content += "</body></html>"
         self.editor_widget.setHtml(html_content)
 
