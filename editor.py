@@ -1,7 +1,8 @@
-from PyQt5.QtWidgets import QTextEdit, QToolBar, QAction
-from PyQt5.QtGui import QTextCursor, QTextCharFormat, QFont
+from PyQt5.QtWidgets import QTextEdit, QToolBar, QAction, QFileDialog
+from PyQt5.QtGui import QTextCursor, QTextCharFormat, QFont, QImage
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 from docx import Document
+from docx.shared import Inches
 from difflib import SequenceMatcher
 
 class DocumentEditor(QObject):
@@ -55,6 +56,10 @@ class DocumentEditor(QObject):
         redo_action.triggered.connect(self.editor_widget.redo)
         self.toolbar.addAction(redo_action)
 
+        insert_image_action = QAction("Insert Image", self.toolbar)
+        insert_image_action.triggered.connect(self.insert_image)
+        self.toolbar.addAction(insert_image_action)
+
     def make_bold(self):
         cursor = self.editor_widget.textCursor()
         fmt = QTextCharFormat()
@@ -69,16 +74,21 @@ class DocumentEditor(QObject):
 
     def load_document(self, path):
         self.document = Document(path)
-        self.original_content = self._get_full_text_from_doc()  # Use updated method to get all content
+        self.original_content = self._get_full_text_from_doc()
         self.previous_content = self.original_content
-        self.initial_comparison_done = True  # Mark that initial content is set up
+        self.initial_comparison_done = True
         self.display_document_as_html()
-        self.editor_widget.setReadOnly(False)  # Enable editing
+        self.editor_widget.setReadOnly(False)
 
     def _get_full_text_from_doc(self):
         text = ""
         for para in self.document.paragraphs:
-            text += para.text + "\n"  # Ensure all content, including <>, is captured
+            for run in para.runs:
+                if run.element.xpath('.//w:drawing'):
+                    text += "<img>"  # Placeholder for image
+                else:
+                    text += run.text
+            text += "\n"
         for table in self.document.tables:
             for row in table.rows:
                 for cell in row.cells:
@@ -89,9 +99,13 @@ class DocumentEditor(QObject):
     def display_document_as_html(self):
         html_content = "<html><body>"
         for para in self.document.paragraphs:
-            para_text = para.text.strip()
+            para_text = ""
+            for run in para.runs:
+                if run.element.xpath('.//w:drawing'):
+                    para_text += '<img src="data:image/png;base64,...">'  # Add the actual image data
+                else:
+                    para_text += run.text.strip().replace('<', '&lt;').replace('>', '&gt;')
             if para_text:
-                para_text = para_text.replace('<', '&lt;').replace('>', '&gt;')  # Ensure placeholders are rendered correctly
                 font = para.style.font
                 style = "font-family: {0};".format(font.name if font.name else "default")
                 if font.size:
@@ -108,12 +122,20 @@ class DocumentEditor(QObject):
             for row in table.rows:
                 html_content += "<tr>"
                 for cell in row.cells:
-                    cell_text = cell.text.replace('<', '&lt;').replace('>', '&gt;')  # Ensure placeholders in tables are rendered correctly
+                    cell_text = cell.text.replace('<', '&lt;').replace('>', '&gt;')
                     html_content += f"<td>{cell_text}</td>"
                 html_content += "</tr>"
             html_content += "</table>"
         html_content += "</body></html>"
         self.editor_widget.setHtml(html_content)
+
+    def insert_image(self):
+        file_dialog = QFileDialog()
+        image_path, _ = file_dialog.getOpenFileName(self.editor_widget, "Insert Image", "", "Images (*.png *.jpg *.bmp *.gif)")
+        if image_path:
+            cursor = self.editor_widget.textCursor()
+            image = QImage(image_path)
+            cursor.insertImage(image)
 
     def track_text_change(self):
         if self.editor_widget.isReadOnly() or not self.initial_comparison_done:
