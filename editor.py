@@ -187,11 +187,15 @@ class DocumentEditor(QObject):
         filtered_deletions = [text for text in deletions if not self._is_placeholder(text)]
 
         # Aggregate and buffer insertions and deletions
+        buffer_started = False
         if filtered_insertions:
             self.insertion_buffer += "".join(filtered_insertions)
-            self.buffer_timer.start(300)  # Wait for 300ms before flushing the buffer
+            buffer_started = True
         if filtered_deletions:
             self.deletion_buffer += "".join(filtered_deletions)
+            buffer_started = True
+
+        if buffer_started:
             self.buffer_timer.start(300)  # Wait for 300ms before flushing the buffer
 
         self.previous_content = current_content  # Update content
